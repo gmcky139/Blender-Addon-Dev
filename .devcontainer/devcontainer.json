@@ -1,0 +1,30 @@
+{
+	"name" : "Blender Addon Dev",
+
+	"build": {
+		"dockerfile": "Dockerfile"
+	},
+
+	"postCreateCommand": "pip install fake-bpy-module-latest",
+
+	"customizations": {
+		"vscode": {
+			// コンテナ内に自動でインストールするVS Code拡張機能
+			"extensions": [
+				"ms-python.python",
+				"JacquesLucke.blender-development"
+			],
+			"settings": {
+				"blender.executables": [
+					{
+						"name": "Blender 4.5 Container",
+						"path": "/usr/local/bin/blender/blender",
+						"isDebug": false
+					}
+				],
+
+				"python.defaultInterpreterPath": "/usr/local/bin/python"
+			}
+		}
+	}
+}
