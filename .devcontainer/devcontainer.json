@@ -5,6 +5,10 @@
 		"dockerfile": "Dockerfile"
 	},
 
+	"runArgs": [
+		 "--gpus", "all"
+	],
+
 	"postCreateCommand": "pip install fake-bpy-module-latest",
 
 	"customizations": {
