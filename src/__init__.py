@@ -33,7 +33,7 @@ for p in pyfiles:
 classes = [
     GlobalItem,
     ui.MY_UL_List,
-    operator.MY_OT_AddItem,
+    operator.MY_OT_SaveItem,
     operator.MY_OT_RemoveItem,
     operator.MY_OT_Load,
     operator.MY_OT_Reload,

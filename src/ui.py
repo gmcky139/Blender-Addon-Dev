@@ -20,7 +20,7 @@ class NODE_PT_my_panel(bpy.types.Panel):
             rows=5
         )
         row = layout.row(align=True)
-        row.operator("global.add_item", icon="IMPORT", text="Add")
+        row.operator("global.save_item", icon="IMPORT", text="Save")
         row.operator("global.remove_item", icon="X", text="Remove")
         row.operator("global.reload", icon='FILE_REFRESH', text="Reload")
         layout.operator("global.load", icon="NODETREE", text="Load Nodes")

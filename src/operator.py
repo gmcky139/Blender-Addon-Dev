@@ -1,12 +1,14 @@
 import bpy
+import util;
 
-class MY_OT_AddItem(bpy.types.Operator):
-    bl_idname = "global.add_item"
+class MY_OT_SaveItem(bpy.types.Operator):
+    bl_idname = "global.save_item"
     bl_label = "Add Item"
 
     def execute(self, context):
-        item = context.window_manager.global_list.add()
-        item.name = "Nodes"
+        if context.selected_nodes:
+            item = context.window_manager.global_list.add()
+            item.name = "Nodes"
         return {'FINISHED'}
 
 
