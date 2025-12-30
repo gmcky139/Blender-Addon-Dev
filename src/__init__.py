@@ -1,25 +1,28 @@
 bl_info = {
-    "name": "My Container Addon",
-    "author": "Koji Umeda",
-    "version": (1, 0),
+    "name": "Node Holder",
+    "author": "gmcky139",
+    "version": (1, 0, 0),
     "blender": (4, 5, 0),
-    "location": "View3D > Sidebar > My Tab",
-    "description": "Dev Container Test Addon",
-    "category": "Development",
+    "location": "Node Editor > Sidebar > Node Holder",
+    "description": "Save selected nodes with connections and data for reuse across blend files.",
+    "support": "COMMUNITY",
+    "warning": "",
+    "doc_url": "https://github.com/gmcky139/Node-Holder",
+    "tracker_url": "https://github.com/gmcky139/Node-Holder/issues",
+    "category": "Node",
 }
 
 import bpy
 import importlib
-import os
+import uuid
 from . import util
 from . import ui
 from . import operator
 
 
-DATA_FILE = os.path.join(os.path.dirname(__file__), "global_list_data.json")
-
 class GlobalItem(bpy.types.PropertyGroup):
-    name: bpy.props.StringProperty(name="Name", default="New Item")
+    uid: bpy.props.StringProperty(default="")
+    name: bpy.props.StringProperty(name="Name", default="New Item", update = util.update_name_in_json)
     node_data: bpy.props.StringProperty(name="Node Data JSON", default="{}")
 
 pyfiles = [
@@ -35,9 +38,10 @@ for p in pyfiles:
 classes = [
     GlobalItem,
     ui.MY_UL_List,
-    operator.MY_OT_SaveItem,
+    operator.MY_OT_OverwriteItem,
     operator.MY_OT_RemoveItem,
     operator.MY_OT_Load,
+    operator.MY_OT_RegisterItem,
     operator.MY_OT_Reload,
     ui.NODE_PT_my_panel
 ]
@@ -49,10 +53,10 @@ def register():
     bpy.types.WindowManager.global_list = bpy.props.CollectionProperty(type=GlobalItem)
     bpy.types.WindowManager.global_list_index = bpy.props.IntProperty()
 
-    util.load_from_json(DATA_FILE)
+    util.load_from_json()
 
 def unregister():
-    util.store_to_json(DATA_FILE)
+    util.store_to_json()
 
     del bpy.types.WindowManager.global_list
     del bpy.types.WindowManager.global_list_index

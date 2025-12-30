@@ -20,9 +20,10 @@ class NODE_PT_my_panel(bpy.types.Panel):
             rows=5
         )
         row = layout.row(align=True)
-        row.operator("global.save_item", icon="IMPORT", text="Save")
+        row.operator("global.overwrite_item", icon="GREASEPENCIL", text="Overwrite")
         row.operator("global.remove_item", icon="X", text="Remove")
         row.operator("global.reload", icon='FILE_REFRESH', text="Reload")
+        layout.operator("global.register_item", icon="IMPORT", text="Register Nodes")
         layout.operator("global.load", icon="NODETREE", text="Load Nodes")
 
 class MY_UL_List(bpy.types.UIList):
