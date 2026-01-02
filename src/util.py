@@ -5,6 +5,14 @@ from contextlib import contextmanager
 
 IS_UPDATING = False
 
+"""動的探索をやろうとした残骸
+EXCLUDE_PROPS = {
+    'rna_type', 'name', 'type', 'location', 'width', 'height', 
+    'select', 'dimensions', 'inputs', 'outputs', 'internal_links', 
+    'parent', 'label', 'color', 'use_custom_color', 'hide'
+}"""
+
+
 @contextmanager
 def prevent_update():
     global IS_UPDATING
@@ -92,16 +100,50 @@ def store_to_json():
     with open(DATA_FILE, 'w') as f:
         json.dump(data_list, f, indent=4)
 
-def SerializeNodes(context):
-    nodes = context.selected_nodes
-    tree = context.space_data.edit_tree
-    if tree is None:
-        tree = context.space_data.node_tree
 
-    data = {
-        "node": [],
-        "links": []
-    }
+def SerializeNodes(context, cTree = None):
+    if cTree is None:
+        nodes = context.selected_nodes
+        tree = context.space_data.edit_tree
+        if tree is None:
+            tree = context.space_data.node_tree
+
+        data = {
+            "nodes": [],
+            "links": []
+        }
+    else:
+        tree = cTree
+        nodes = tree.nodes
+
+        data = {
+            "nodes": [],
+            "links": [],
+            "interface": {"inputs": [], "outputs": []}
+        }
+
+        if hasattr(tree, "interface"):
+            for item in tree.interface.items_tree:
+                if item.item_type != 'SOCKET':
+                    continue
+
+                sock_data = {
+                    "name": item.name,
+                    "type": item.socket_type,
+                    "default_value": None
+                }
+
+                if hasattr(item, "default_value"):
+                    try:
+                        sock_data["default_value"] = list(item.default_value)
+                    except:
+                        sock_data["default_value"] = item.default_value
+
+                if item.in_out == 'INPUT':
+                    data["interface"]["inputs"].append(sock_data)
+                elif item.in_out == 'OUTPUT':
+                    data["interface"]["outputs"].append(sock_data)
+   
 
     sel_names = [n.name for n in nodes]
 
@@ -120,20 +162,24 @@ def SerializeNodes(context):
         "use_clamp",        # Math Node Checkbox
         "clamp_result",     # Mix Node Checkbox
         "clamp_factor",     # Mix Node Checkbox (Old)
+        "interpolation",    # Image Texture
         "interpolation_type", # Map Range
         "color_mode",       # Gradient Texture
         "wave_type",        # Wave Texture
         "wave_profile",     # Wave Texture
         "rings_direction",  # Wave Texture
+        "projection",       # Image Texture
+        "extension",        # Image Texture
     ]
 
     for node in nodes:
         node_data = {
             "name": node.name,
-            "id": node.bl_idname,
+            "type": node.bl_idname,
             "location": (node.location.x, node.location.y),
             "width": node.width,
             "inputs": [],
+            "outputs": [],
             "properties": {}
         }
 
@@ -152,6 +198,17 @@ def SerializeNodes(context):
                     pass
 
                 node_data["inputs"].append({"index": i, "value": val})
+
+        for i, sock in enumerate(node.outputs):
+            if hasattr(sock, "default_value"):
+                val = sock.default_value
+
+                try:
+                    val = list(val)
+                except:
+                    pass
+
+                node_data["outputs"].append({"index": i, "value": val})
 
         if node.bl_idname == 'ShaderNodeValToRGB':
             ramp = node.color_ramp
@@ -189,15 +246,39 @@ def SerializeNodes(context):
             curve_data["clip_max_x"] = curve_mapping.clip_max_x
             curve_data["clip_max_y"] = curve_mapping.clip_max_y
             curve_data["use_clip"] = curve_mapping.use_clip
-                
+               
             node_data["special_data"] = {
                 "type": "curve",
                 "data": curve_data
             }
 
-        data["node"].append(node_data)
-    
+        elif node.bl_idname == 'ShaderNodeTexImage':
+            img_data = {}
+            if node.image:
+                img_data["image_name"] = node.image.name
 
+                img_data["filepath"] = node.image.filepath
+
+                if hasattr(node.image, "colorspace_settings"):
+                    img_data["color_space"] = node.image.colorspace_settings.name
+
+                img_data["source"] = node.image.source
+                img_data["alpha_mode"] = node.image.alpha_mode
+           
+            node_data["special_data"] = {"type": "image", "data": img_data}
+       
+        elif node.type == 'GROUP':
+            group_data = {}
+            if node.node_tree:
+                childTree = node.node_tree
+                group_data["tree_name"] = childTree.name
+                group_data["tree_type"] = childTree.bl_idname
+                group_data["node_data"] = SerializeNodes(context, childTree)
+
+            node_data["special_data"] = {"type": "group", "data": group_data}
+
+        data["nodes"].append(node_data)
+   
     for link in tree.links:
         if link.from_node.name in sel_names and link.to_node.name in sel_names:
             link_data = {
@@ -211,53 +292,42 @@ def SerializeNodes(context):
                 if sock == link.from_socket:
                     link_data["from_socket_index"] = i
                     break
-            
+           
             for i, sock in enumerate(link.to_node.inputs):
                 if sock == link.to_socket:
                     link_data["to_socket_index"] = i
                     break
-            
+           
             data["links"].append(link_data)
 
     return data
 
 
-def DeserializeNodes(context, data):
+def DeserializeNodes(self, context, data, iTree = None):
     tree = context.space_data.edit_tree
     if tree is None:
         tree = context.space_data.node_tree
+
+    if iTree:
+        tree = iTree
 
     for n in tree.nodes:
         n.select = False
 
     node_map = {}
 
-    node_list = data.get("node", [])
+    node_list = data.get("nodes", [])
 
     for n_data in node_list:
-        new_node = tree.nodes.new(n_data["id"])
+        try:
+            new_node = tree.nodes.new(n_data["type"])
+        except RuntimeError:
+            print(f"Node Type Not Found: {n_data['type']}")
+            continue
         new_node.location = n_data["location"]
         new_node.width = n_data["width"]
         new_node.select = True
-
         node_map[n_data["name"]] = new_node
-
-        for prop, val in n_data["properties"].items():
-            if hasattr(new_node, prop):
-                try:
-                    setattr(new_node,prop,val)
-                except:
-                    print(f"Property Error: {prop}")
-        
-        for inp in n_data["inputs"]:
-            idx = inp["index"]
-            val = inp["value"]
-
-            if idx < len(new_node.inputs):
-                try:
-                    new_node.inputs[idx].default_value = val
-                except:
-                    pass
 
         special = n_data.get("special_data")
 
@@ -272,15 +342,10 @@ def DeserializeNodes(context, data):
 
                 elements_data = sData.get("elements", [])
 
-                current_len = len(ramp.elements)
-                target_len = len(elements_data)
-
-                if current_len < target_len:
-                    for _ in range(target_len - current_len):
-                        ramp.elements.new(1.0)
-                elif current_len > target_len:
-                    for i in range(current_len - 1 , target_len - 1, -1):
-                        ramp.elements.remove(ramp.elements[i])
+                while len(ramp.elements) < len(elements_data):
+                    ramp.elements.new(1.0)
+                while len(ramp.elements) > len(elements_data):
+                    ramp.elements.remove(ramp.elements[-1])
 
                 for i, elt_d in enumerate(elements_data):
                     elt = ramp.elements[i]
@@ -303,15 +368,10 @@ def DeserializeNodes(context, data):
 
                     curve = mapping.curves[i]
 
-                    target_len = len(points_list)
-                    current_len = len(curve.points)
-
-                    if target_len > current_len:
-                        for _ in range(target_len - current_len):
-                            curve.points.new(0.0, 0.0)
-                    elif target_len < current_len:
-                         for k in range(current_len - 1, target_len - 1, -1):
-                            curve.points.remove(curve.points[k])
+                    while len(curve.points) < len(points_list):
+                        curve.points.new(0.0, 0.0)
+                    while len(curve.points) > len(points_list):
+                        curve.points.remove(curve.points[-1])
 
                     for j, p_data in enumerate(points_list):
                         p = curve.points[j]
@@ -322,7 +382,101 @@ def DeserializeNodes(context, data):
                 if hasattr(mapping, "update"):
                     mapping.update()
 
-    
+            elif sType == "image":
+                img_name = sData.get("image_name")
+                filepath = sData.get("filepath", "")
+
+                image = None
+
+                if img_name:
+                    image = bpy.data.images.get(img_name)
+
+                if not image and filepath:
+                    try:
+                        image = bpy.data.images.load(filepath, check_existing=True)
+                    except RuntimeError:
+                        print(f"ロード失敗: {filepath}")
+
+                if image:
+                    new_node.image = image
+                    if "color_space" in sData and hasattr(image, "colorspace_settings"):
+                        image.colorspace_settings.name = sData["color_space"]
+                    if "source" in sData:
+                        image.source = sData["source"]
+                    if "alpha_mode" in sData:
+                        image.alpha_mode = sData["alpha_mode"]
+                   
+                else:
+                    self.report({'WARNING'}, f"画像 '{img_name}' (パス: {filepath}) が見つかりませんでした")
+
+            elif sType == "group":
+                tree_name = sData.get("tree_name")
+
+                if tree_name:
+                    found_group = bpy.data.node_groups.get(tree_name)
+
+                    if found_group:
+                        new_node.node_tree = found_group
+                   
+                    else:
+                        group_type = sData.get("tree_type", "ShaderNodeTree")
+                        new_group = bpy.data.node_groups.new(name = tree_name, type = group_type)
+
+                        inner_data = sData.get("node_data")
+
+                        if inner_data:
+                            interface_data = inner_data.get("interface")
+
+                            if interface_data and hasattr(new_group, "interface"):
+                                for sock_d in interface_data.get("inputs", []):
+                                    sk = new_group.interface.new_socket(name = sock_d["name"], in_out = 'INPUT', socket_type = sock_d["type"])
+
+                                    if "default_value" in sock_d and hasattr(sk, "default_value"):
+                                        try:
+                                            sk.default_value = sock_d["default_value"]
+                                        except:
+                                            pass
+                               
+                                for sock_d in interface_data.get("outputs", []):
+                                    new_group.interface.new_socket(name = sock_d["name"], in_out = 'OUTPUT', socket_type = sock_d["type"])
+                            DeserializeNodes(self, context, inner_data, new_group)
+                           
+                        new_node.node_tree = new_group
+
+                       
+           
+        for prop, val in n_data["properties"].items():
+            if hasattr(new_node, prop):
+                try:
+                    setattr(new_node,prop,val)
+                except AttributeError:
+                    pass
+                except TypeError:
+                    pass
+       
+        for inp in n_data["inputs"]:
+            idx = inp["index"]
+            val = inp["value"]
+
+            if idx < len(new_node.inputs):
+                try:
+                    new_node.inputs[idx].default_value = val
+                except:
+                    pass
+
+        for otp in n_data["outputs"]:
+            idx = otp["index"]
+            val = otp["value"]
+
+            if idx < len(new_node.outputs):
+                try:
+                    new_node.outputs[idx].default_value = val
+                except:
+                    pass
+
+
+
+   
 
     for l_data in data["links"]:
         try:
@@ -335,8 +489,8 @@ def DeserializeNodes(context, data):
             tree.links.new(socket_out, socket_in)
 
         except KeyError:
-            print("Link Error: Node mapping failed")
+            pass
         except IndexError:
-            print("Link Error: Socket index mismatch")
+            print("Link Error: Socket index out of range")
 
     return {'FINISHED'}

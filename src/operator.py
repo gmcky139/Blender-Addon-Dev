@@ -54,7 +54,7 @@ class MY_OT_Load(bpy.types.Operator):
             if item.node_data:
                 try:
                     data = json.loads(item.node_data)
-                    util.DeserializeNodes(context, data)
+                    util.DeserializeNodes(self, context, data)
                 except json.JSONDecodeError:
                     self.report({'ERROR'}, "データの読み込みに失敗しました")
 
