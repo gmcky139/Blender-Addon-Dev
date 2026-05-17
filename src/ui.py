@@ -3,8 +3,8 @@ import bpy
 class VIEW3D_PT_fbx_export(bpy.types.Panel):
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
-    bl_category = "FBX Export"
-    bl_label = "FBX Export"
+    bl_category = "FBX Exporter"
+    bl_label = "FBX Exporter"
 
     def draw(self, context):
         layout = self.layout

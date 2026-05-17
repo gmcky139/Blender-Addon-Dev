@@ -44,10 +44,10 @@ class EXPORT_OT_fbx_auto(bpy.types.Operator):
             )
 
             metadata = {
-                "scale_factor": 1.0,
-                "generate_colliders": "COL" in obj.name,
-                "is_static": True,
-                "vfx_type": "horror_leaking_steam"
+                "scaleFactor": 1.0,
+                "generateColliders": "COL" in obj.name,
+                "isStatic": True,
+                "vfxType": "horror_leaking_steam"
             }
 
             with open(json_path, 'w') as f:
